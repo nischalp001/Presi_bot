@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Presi - PDF RAG Chatbot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Google Font: DM Serif Text -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #fd7e14;
+      --secondary: #6f42c1;
+      --user-color: #ffe6cc;
+      --bot-color: #e6ddff;
+      --bg-color: #fff7f0;
+      --text-color: #1b1b1b;
+    }
+
+    body.dark {
+      --bg-color: #2e1f47;
+      --text-color: #f9f9f9;
+      --user-color: #fd7e14;
+      --bot-color: #6f42c1;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .chat-header {
+      text-align: center;
+      padding: 15px;
+      background: var(--primary);
+      color: white;
+      font-size: 28px;
+      font-family: 'DM Serif Text', serif;
+      letter-spacing: 1px;
+    }
+
+    .chat-controls {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-controls button {
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      font-size: 20px;
+      color: white;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+    }
+
+    .chat-controls button:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    @media (max-width: 600px) {
+      .chat-controls {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: transparent;
+        padding: 5px;
+        z-index: 10;
+      }
+
+      .chat-controls button {
+        width: 48px;
+        height: 48px;
+        font-size: 24px;
+      }
+    }
+
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      max-width: 80%;
+      padding: 10px 15px;
+      border-radius: 10px;
+      line-height: 1.4;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .message.user {
+      background-color: var(--user-color);
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message.bot {
+      background-color: var(--bot-color);
+      align-self: flex-start;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #333;
+      flex-shrink: 0;
+    }
+
+    .input-container {
+      display: flex;
+      padding: 10px;
+      background: white;
+      border-top: 1px solid #ddd;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 12px 16px;
+      font-size: 16px;
+      background-color: var(--secondary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #59359d;
+    }
+
+    .typing {
+      font-style: italic;
+      opacity: 0.7;
+      padding-left: 40px;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="chat-header">Presi</div>
+<div class="chat-controls">
+  <button onclick="toggleTheme()" title="Toggle Theme">🌗</button>
+  <button onclick="clearChat()" title="Clear Chat">🗑️</button>
+</div>
+
+<div class="chat-container" id="chat"></div>
+
+<div class="input-container">
+  <input type="text" id="promptInput" placeholder="Ask something about the PDF...">
+  <button onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+  const chat = document.getElementById('chat');
+  const input = document.getElementById('promptInput');
+  let typingEl;
+
+  function addMessage(text, sender) {
+    const div = document.createElement('div');
+    div.className = 'message ' + sender;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = sender === 'user' ? '👤' : '🤖';
+
+    const content = document.createElement('div');
+    content.textContent = text;
+
+    div.appendChild(avatar);
+    div.appendChild(content);
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function showTyping() {
+    typingEl = document.createElement('div');
+    typingEl.className = 'typing';
+    typingEl.textContent = "🤖 is typing...";
+    chat.appendChild(typingEl);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function hideTyping() {
+    if (typingEl) {
+      chat.removeChild(typingEl);
+      typingEl = null;
+    }
+  }
+
+  async function sendMessage() {
+    const question = input.value.trim();
+    if (!question) return;
+
+    addMessage(question, 'user');
+    input.value = '';
+    showTyping();
+
+    try {
+      const res = await fetch('https://pgs-llm.onrender.com/rag', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query: question })
+      });
+
+      const data = await res.json();
+      hideTyping();
+      if (data.answer) {
+        addMessage(data.answer, 'bot');
+      } else {
+        addMessage("❌ " + (data.error || "No response from server."), 'bot');
+      }
+    } catch (err) {
+      hideTyping();
+      addMessage("⚠️ Error connecting to server.", 'bot');
+    }
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
+  }
+
+  function clearChat() {
+    chat.innerHTML = '';
+    showWelcome();
+  }
+
+  function showWelcome() {
+    addMessage("Hi! 👋 I'm Presi. Ask me anything about your uploaded PDF document!", "bot");
+  }
+
+  input.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  // Initial message
+  showWelcome();
+</script>
+
+</body>
+</html>
